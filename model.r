@@ -316,7 +316,7 @@ loan$emp_length <- ifelse(loan$emp_length == 'n/a', loan$emp_length,
 set.seed(1)
 
 loan_goal <- loan$loan_status_binary
-loan_goal_df <- as.data.frame(loan_goal, StringAsFactor=FALSE)
+loan_goal_df <- as.data.frame(loan_goal)
 loan_goal <- loan_goal_df
 loan_data <- loan[, -which(colnames(loan) %in% c('loan_status_binary', 'loan_status'))]
 loan_sparse <- sparse.model.matrix( ~. , loan_data)
@@ -333,13 +333,12 @@ library(glmnet)
 # ind <- sparse.model.matrix( ~. , train[, -which(colnames(train) %in% c('loan_status_binary', 'loan_status'))])
 # dep <- train$loan_status_binary
 mod1_data <- cbind(loan, loan_goal)
-mod1_data$loan_status_binary <- as.numeric(mod1_data$loan_status_binary)
 mod1_data$loan_goal <- NULL
 mod1_data$loan_status <- NULL
 str(mod1_data)
 mod1_train <- mod1_data[train.ind, ]
 mod1_test <- mod1_data[-train.ind, ]
-mod1 <- lm(loan_status_binary ~ ., data = mod1_train)
+mod1 <- glm(loan_status_binary ~ ., data = mod1_train, family = "binomial")
 
 # residual = observed - fitted
 head(sort(mod1$res))
