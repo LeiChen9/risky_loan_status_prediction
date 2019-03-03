@@ -314,16 +314,43 @@ loan$emp_length <- ifelse(loan$emp_length == 'n/a', loan$emp_length,
 
 # modeling
 set.seed(1)
-train.ind <- sample(1:dim(loan)[1], 0.7* dim(loan)[1])
-train <- loan[train.ind, ]
-test <- loan[-train.ind, ]
+
+loan_goal <- loan$loan_status_binary
+loan_goal_df <- as.data.frame(loan_goal, StringAsFactor=FALSE)
+loan_goal <- loan_goal_df
+loan_data <- loan[, -which(colnames(loan) %in% c('loan_status_binary', 'loan_status'))]
+loan_sparse <- sparse.model.matrix( ~. , loan_data)
+dim(loan_sparse)
+
+train.ind <- sample(1:dim(loan)[1], 0.7 * dim(loan)[1])
+train <- loan_sparse[train.ind, ]
+test <- loan_sparse[-train.ind, ]
+train_goal <- loan_goal[train.ind, ]
+test_goal <- loan_goal[-train.ind, ]
 
 library(glmnet)
 
-ind <- sparse.model.matrix( ~. , train[, -which(colnames(train) %in% c('loan_status_binary', 'loan_status'))])
-dep <- train$loan_status_binary
+# ind <- sparse.model.matrix( ~. , train[, -which(colnames(train) %in% c('loan_status_binary', 'loan_status'))])
+# dep <- train$loan_status_binary
+mod1_data <- cbind(loan, loan_goal)
+mod1_data$loan_status_binary <- as.numeric(mod1_data$loan_status_binary)
+mod1_data$loan_goal <- NULL
+mod1_data$loan_status <- NULL
+str(mod1_data)
+mod1_train <- mod1_data[train.ind, ]
+mod1_test <- mod1_data[-train.ind, ]
+mod1 <- lm(loan_status_binary ~ ., data = mod1_train)
+
+# residual = observed - fitted
+head(sort(mod1$res))
+mod1$res[which.min(mod1$res)]
+mod1$res[which.max(mod1$res)]
+plot(mod1$fit, mod1$res, xlab = 'Fitted', ylab = 'residual')
+summary(mod1)
+plot(mod1)
+
 Sys.time()
-cv.mod <- cv.glmnet(ind[1:10000, ], dep[1:10000], family = 'binomial')
+cv.mod <- cv.glmnet(train[1:10000, ], train_goal[1:10000], family = 'binomial')
 Sys.time()
 
 plot(cv.mod)
@@ -331,19 +358,17 @@ cv.mod$lambda.1se
 coef <- coef(cv.mod, s = 'lambda.1se') # make feature selection via l1 norm
 coef
 
-test.ind <- sparse.model.matrix( ~. , test[, -which(colnames(test) %in% c('loan_status_binary', 'loan_status'))])
-predict(cv.mod, newx = test.ind, s = 'lambda.1se')
+pred <- predict(cv.mod, newx = test, s = 'lambda.1se')
 
-# residual = observed - fitted
-head(sort(cv.mod$res))
-cv.mod$res[which.min(cv.mod$res)]
-cv.mod$res[which.max(cv.mod$res)]
-plot(cv.mod$fit, cv.mod$res, xlab = 'Fitted', ylab = 'residual')
+rmse <- (mean((as.numeric(pred) - as.numeric(test_goal))^2))^0.5
+rmse
 
+summary(cv.mod)
 
+library(ggfortify)
 
+autoplot(cv.mod)
 
-
-
-
+library(plotmo) # for plotres
+plotres(cv.mod)
 
